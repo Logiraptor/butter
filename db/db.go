@@ -67,7 +67,9 @@ func GetMulti(c appengine.Context, vals interface{}) error {
 // Put inserts val into the database under the key returned by Key
 func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
 	if g, ok := val.(OnPutter); ok {
-		return k, g.OnPut(c)
+		if err := g.OnPut(c); err != nil {
+			return nil, err
+		}
 	}
 	k, err := nds.Put(c, Key(c, val), val)
 	if err != nil {
