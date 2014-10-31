@@ -70,8 +70,8 @@ func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	if g, ok := val.(OnGetter); ok {
-		return k, g.OnGet(c)
+	if g, ok := val.(OnPutter); ok {
+		return k, g.OnPut(c)
 	}
 	return k, nil
 }
