@@ -64,11 +64,6 @@ func GetMulti(c appengine.Context, vals interface{}) error {
 	}, vals)
 }
 
-// LoadStruct loads dst from a property list
-func LoadStruct(dst interface{}, pl datastore.PropertyList) error {
-	return nds.LoadStruct(dst, pl)
-}
-
 // Put inserts val into the database under the key returned by Key
 func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
 	k, err := nds.Put(c, Key(c, val), val)
@@ -99,13 +94,8 @@ func PutMulti(c appengine.Context, vals interface{}) ([]*datastore.Key, error) {
 }
 
 // RunInTransaction runs f within a transaction
-func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *nds.TransactionOptions) error {
+func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *datastore.TransactionOptions) error {
 	return nds.RunInTransaction(c, f, opts)
-}
-
-// SaveStruct loads src into a propertylist
-func SaveStruct(src interface{}, pl *datastore.PropertyList) error {
-	return nds.SaveStruct(src, pl)
 }
 
 // Key returns a key based on fields in src.
