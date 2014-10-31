@@ -66,23 +66,19 @@ func GetMulti(c appengine.Context, vals interface{}) error {
 
 // Put inserts val into the database under the key returned by Key
 func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
+	if g, ok := val.(OnPutter); ok {
+		return k, g.OnPut(c)
+	}
 	k, err := nds.Put(c, Key(c, val), val)
 	if err != nil {
 		return nil, err
-	}
-	if g, ok := val.(OnPutter); ok {
-		return k, g.OnPut(c)
 	}
 	return k, nil
 }
 
 // PutMulti inserts vals into the database under the keys as returned by Keys
 func PutMulti(c appengine.Context, vals interface{}) ([]*datastore.Key, error) {
-	keys, err := nds.PutMulti(c, Keys(c, vals), vals)
-	if err != nil {
-		return nil, err
-	}
-	return keys, rangeInterface(func(i interface{}) error {
+	err := rangeInterface(func(i interface{}) error {
 		if g, ok := i.(OnPutter); ok {
 			err := g.OnPut(c)
 			if err != nil {
@@ -91,6 +87,14 @@ func PutMulti(c appengine.Context, vals interface{}) ([]*datastore.Key, error) {
 		}
 		return nil
 	}, vals)
+	if err != nil {
+		return nil, err
+	}
+	keys, err := nds.PutMulti(c, Keys(c, vals), vals)
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 // RunInTransaction runs f within a transaction
