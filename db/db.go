@@ -6,10 +6,6 @@ import (
 
 	"appengine"
 
-	"github.com/Logiraptor/butter/keys"
-
-	"code.google.com/p/go.net/context"
-
 	"github.com/qedus/nds"
 
 	"appengine/datastore"
@@ -21,27 +17,27 @@ var (
 
 // An OnGetter has its callback called immediately after Get, GetMulti, or Query.Next
 type OnGetter interface {
-	OnGet(ctx context.Context) error
+	OnGet(ctx appengine.Context) error
 }
 
 // An OnPutter has its callback called immediately before Put or PutMulti
 type OnPutter interface {
-	OnPut(ctx context.Context) error
+	OnPut(ctx appengine.Context) error
 }
 
 // Delete deletes the entity associated with key
-func Delete(c context.Context, key *datastore.Key) error {
-	return nds.Delete(keys.AEContext(c), key)
+func Delete(c appengine.Context, key *datastore.Key) error {
+	return nds.Delete(c, key)
 }
 
 // DeleteMulti deletes the entity associated with keys
-func DeleteMulti(c context.Context, keylist []*datastore.Key) error {
-	return nds.DeleteMulti(keys.AEContext(c), keylist)
+func DeleteMulti(c appengine.Context, keylist []*datastore.Key) error {
+	return nds.DeleteMulti(c, keylist)
 }
 
 // Get fills val in based on its key as returned by Key ID and Parent
-func Get(c context.Context, val interface{}) error {
-	err := nds.Get(keys.AEContext(c), Key(c, val), val)
+func Get(c appengine.Context, val interface{}) error {
+	err := nds.Get(c, Key(c, val), val)
 	if err != nil {
 		return err
 	}
@@ -52,8 +48,8 @@ func Get(c context.Context, val interface{}) error {
 }
 
 // GetMulti fills in the values in vals based on their keys as returned by Keys
-func GetMulti(c context.Context, vals interface{}) error {
-	err := nds.GetMulti(keys.AEContext(c), Keys(c, vals), vals)
+func GetMulti(c appengine.Context, vals interface{}) error {
+	err := nds.GetMulti(c, Keys(c, vals), vals)
 	if err != nil {
 		return err
 	}
@@ -74,8 +70,8 @@ func LoadStruct(dst interface{}, pl datastore.PropertyList) error {
 }
 
 // Put inserts val into the database under the key returned by Key
-func Put(c context.Context, val interface{}) (*datastore.Key, error) {
-	k, err := nds.Put(keys.AEContext(c), Key(c, val), val)
+func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
+	k, err := nds.Put(c, Key(c, val), val)
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +82,8 @@ func Put(c context.Context, val interface{}) (*datastore.Key, error) {
 }
 
 // PutMulti inserts vals into the database under the keys as returned by Keys
-func PutMulti(c context.Context, vals interface{}) ([]*datastore.Key, error) {
-	keys, err := nds.PutMulti(keys.AEContext(c), Keys(c, vals), vals)
+func PutMulti(c appengine.Context, vals interface{}) ([]*datastore.Key, error) {
+	keys, err := nds.PutMulti(c, Keys(c, vals), vals)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +99,8 @@ func PutMulti(c context.Context, vals interface{}) ([]*datastore.Key, error) {
 }
 
 // RunInTransaction runs f within a transaction
-func RunInTransaction(c context.Context, f func(tc appengine.Context) error, opts *nds.TransactionOptions) error {
-	return nds.RunInTransaction(keys.AEContext(c), f, opts)
+func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *nds.TransactionOptions) error {
+	return nds.RunInTransaction(c, f, opts)
 }
 
 // SaveStruct loads src into a propertylist
@@ -116,7 +112,7 @@ func SaveStruct(src interface{}, pl *datastore.PropertyList) error {
 // Options are:
 // An int64 field named ID
 // A datastore.Key field named Parent
-func Key(ctx context.Context, src interface{}) *datastore.Key {
+func Key(ctx appengine.Context, src interface{}) *datastore.Key {
 	val := reflect.ValueOf(src)
 	for val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -136,11 +132,11 @@ func Key(ctx context.Context, src interface{}) *datastore.Key {
 	if parentField.IsValid() && parentField.Type().AssignableTo(keyType) {
 		parent = parentField.Interface().(*datastore.Key)
 	}
-	return datastore.NewKey(keys.AEContext(ctx), val.Type().Name(), "", id, parent)
+	return datastore.NewKey(ctx, val.Type().Name(), "", id, parent)
 }
 
 // Keys applies Key to all elements in src. src must be a slice.
-func Keys(ctx context.Context, src interface{}) []*datastore.Key {
+func Keys(ctx appengine.Context, src interface{}) []*datastore.Key {
 	var keys []*datastore.Key
 	err := rangeInterface(func(i interface{}) error {
 		keys = append(keys, Key(ctx, i))
@@ -169,8 +165,8 @@ func rangeInterface(f func(interface{}) error, list interface{}) error {
 }
 
 // GetN stores n values from query in dst
-func GetN(cx context.Context, query *datastore.Query, dst interface{}, n int) ([]*datastore.Key, string, error) {
-	ctx := keys.AEContext(cx)
+func GetN(cx appengine.Context, query *datastore.Query, dst interface{}, n int) ([]*datastore.Key, string, error) {
+	ctx := cx
 	out := reflect.ValueOf(dst)
 	if out.Kind() != reflect.Ptr || out.Elem().Kind() != reflect.Slice {
 		return nil, "", errors.New("dst must be a *[]T")
