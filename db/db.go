@@ -1,4 +1,4 @@
-package newdb
+package db
 
 import (
 	"errors"
@@ -139,16 +139,11 @@ func Get(c appengine.Context, key *datastore.Key, dst interface{}) error {
 
 // GetMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#GetMulti
 func GetMulti(c appengine.Context, keys []*datastore.Key, dst interface{}) error {
-	err := nds.GetMulti(c, key, dst)
+	err := nds.GetMulti(c, keys, dst)
 	if err != nil {
 		return err
 	}
 	return invokeGetMulti(c, dst, keys)
-}
-
-// LoadStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#LoadStruct
-func LoadStruct(dst interface{}, c <-chan datastore.Property) error {
-	return nds.LoadStruct(dst, pl)
 }
 
 // Put See https://cloud.google.com/appengine/docs/go/datastore/reference#Put
@@ -172,11 +167,6 @@ func PutMulti(c appengine.Context, src interface{}) ([]*datastore.Key, error) {
 // RunInTransaction See https://cloud.google.com/appengine/docs/go/datastore/reference#RunInTransaction
 func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *datastore.TransactionOptions) error {
 	return nds.RunInTransaction(c, f, opts)
-}
-
-// SaveStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#SaveStruct
-func SaveStruct(src interface{}, c chan<- datastore.Property) error {
-	return nds.SaveStruct(src, pl)
 }
 
 // Run returns an iterator for a given query
@@ -256,7 +246,7 @@ func (i iterWrapper) Next(dst interface{}) (*datastore.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	err := invokeGet(reflect.ValueOf(dst), i.ctx, k)
+	err = invokeGet(reflect.ValueOf(dst), i.ctx, k)
 	if err != nil {
 		return nil, err
 	}
