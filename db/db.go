@@ -118,22 +118,18 @@ func invokePutMulti(ctx appengine.Context, src interface{}) ([]*datastore.Key, e
 	return keys, nil
 }
 
-// func AllocateIDs(c appengine.Context, kind string, parent *Key, n int) (low, high int64, err error) {
-// 	return datastore.AllocateIDs(c, kind, parent, n)
-// }
-
 // Delete See https://cloud.google.com/appengine/docs/go/datastore/reference#Delete
-func Delete(c appengine.Context, key *Key) error {
+func Delete(c appengine.Context, key *datastore.Key) error {
 	return nds.Delete(c, key)
 }
 
 // DeleteMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#DeleteMulti
-func DeleteMulti(c appengine.Context, key []*Key) error {
+func DeleteMulti(c appengine.Context, key []*datastore.Key) error {
 	return nds.DeleteMulti(c, key)
 }
 
 // Get See https://cloud.google.com/appengine/docs/go/datastore/reference#Get
-func Get(c appengine.Context, key *Key, dst interface{}) error {
+func Get(c appengine.Context, key *datastore.Key, dst interface{}) error {
 	err := nds.Get(c, key, dst)
 	if err != nil {
 		return err
@@ -142,7 +138,7 @@ func Get(c appengine.Context, key *Key, dst interface{}) error {
 }
 
 // GetMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#GetMulti
-func GetMulti(c appengine.Context, keys []*Key, dst interface{}) error {
+func GetMulti(c appengine.Context, keys []*datastore.Key, dst interface{}) error {
 	err := nds.GetMulti(c, key, dst)
 	if err != nil {
 		return err
@@ -151,12 +147,12 @@ func GetMulti(c appengine.Context, keys []*Key, dst interface{}) error {
 }
 
 // LoadStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#LoadStruct
-func LoadStruct(dst interface{}, c <-chan Property) error {
+func LoadStruct(dst interface{}, c <-chan datastore.Property) error {
 	return nds.LoadStruct(dst, pl)
 }
 
 // Put See https://cloud.google.com/appengine/docs/go/datastore/reference#Put
-func Put(c appengine.Context, src interface{}) (*Key, error) {
+func Put(c appengine.Context, src interface{}) (*datastore.Key, error) {
 	key, err := invokePut(reflect.ValueOf(src), c)
 	if err != nil {
 		return nil, err
@@ -165,7 +161,7 @@ func Put(c appengine.Context, src interface{}) (*Key, error) {
 }
 
 // PutMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#PutMulti
-func PutMulti(c appengine.Context, src interface{}) ([]*Key, error) {
+func PutMulti(c appengine.Context, src interface{}) ([]*datastore.Key, error) {
 	keys, err := invokePutMulti(c, src)
 	if err != nil {
 		return nil, err
@@ -174,12 +170,12 @@ func PutMulti(c appengine.Context, src interface{}) ([]*Key, error) {
 }
 
 // RunInTransaction See https://cloud.google.com/appengine/docs/go/datastore/reference#RunInTransaction
-func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *TransactionOptions) error {
+func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *datastore.TransactionOptions) error {
 	return nds.RunInTransaction(c, f, opts)
 }
 
 // SaveStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#SaveStruct
-func SaveStruct(src interface{}, c chan<- Property) error {
+func SaveStruct(src interface{}, c chan<- datastore.Property) error {
 	return nds.SaveStruct(src, pl)
 }
 
