@@ -10,8 +10,8 @@ import (
 	"appengine/datastore"
 )
 
-var getterType = reflect.TypeOf(Getter(nil))
-var putterType = reflect.TypeOf(Putter(nil))
+var getterType = reflect.TypeOf((*Getter)(nil)).Elem()
+var putterType = reflect.TypeOf((*Putter)(nil)).Elem()
 
 // Getter specifies a type which can be retrieved from
 // the datastore.
