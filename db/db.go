@@ -1,147 +1,77 @@
-package db
+package newdb
 
 import (
 	"errors"
 	"reflect"
 
-	"appengine"
-
 	"github.com/qedus/nds"
 
+	"appengine"
 	"appengine/datastore"
 )
 
-var (
-	keyType = reflect.TypeOf((*datastore.Key)(nil))
-)
+var getterType = reflect.TypeOf(Getter(nil))
+var putterType = reflect.TypeOf(Putter(nil))
 
-// An OnGetter has its callback called immediately after Get, GetMulti, or Query.Next
-type OnGetter interface {
-	OnGet(ctx appengine.Context) error
+// Getter specifies a type which can be retrieved from
+// the datastore.
+type Getter interface {
+	Get(appengine.Context, *datastore.Key) error
 }
 
-// An OnPutter has its callback called immediately before Put or PutMulti
-type OnPutter interface {
-	OnPut(ctx appengine.Context) error
+// Putter specifies a type which can be saved to
+// the datastore.
+type Putter interface {
+	Put(appengine.Context) (*datastore.Key, error)
 }
 
-// Delete deletes the entity associated with key
-func Delete(c appengine.Context, key *datastore.Key) error {
-	return nds.Delete(c, key)
-}
-
-// DeleteMulti deletes the entity associated with keys
-func DeleteMulti(c appengine.Context, keylist []*datastore.Key) error {
-	return nds.DeleteMulti(c, keylist)
-}
-
-// Get fills val in based on its key as returned by Key ID and Parent
-func Get(c appengine.Context, val interface{}) error {
-	err := nds.Get(c, Key(c, val), val)
-	if err != nil {
-		return err
+// invokeGet implements the post-get functionality
+// which is a primary feature of the butter/db package.
+func invokeGet(i reflect.Value, ctx appengine.Context, key *datastore.Key) error {
+	if i.Type().Implements(getterType) {
+		return i.Interface().(Getter).Get(ctx, key)
 	}
-	if g, ok := val.(OnGetter); ok {
-		return g.OnGet(c)
+	// recursive call
+	for i.Type().Kind() == reflect.Ptr {
+		i = i.Elem()
+	}
+	if i.Type().Kind() != reflect.Struct {
+		return nil
+	}
+	n := i.NumField()
+	for j := 0; j < n; j++ {
+		err := invokeGet(i.Field(j), ctx, key)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// GetMulti fills in the values in vals based on their keys as returned by Keys
-func GetMulti(c appengine.Context, vals interface{}) error {
-	err := nds.GetMulti(c, Keys(c, vals), vals)
-	if err != nil {
-		return err
+// invokePut implements the post-Put functionality
+// which is a primary feature of the butter/db package.
+func invokePut(i reflect.Value, ctx appengine.Context) (*datastore.Key, error) {
+	if i.Type().Implements(putterType) {
+		return i.Interface().(Putter).Put(ctx)
 	}
-	return rangeInterface(func(i interface{}) error {
-		if g, ok := i.(OnGetter); ok {
-			err := g.OnGet(c)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}, vals)
-}
-
-// Put inserts val into the database under the key returned by Key
-func Put(c appengine.Context, val interface{}) (*datastore.Key, error) {
-	if g, ok := val.(OnPutter); ok {
-		if err := g.OnPut(c); err != nil {
+	// recursive call
+	for i.Type().Kind() == reflect.Ptr {
+		i = i.Elem()
+	}
+	if i.Type().Kind() != reflect.Struct {
+		return datastore.NewKey(ctx, i.Type().Name(), "", 0, nil), nil
+	}
+	n := i.NumField()
+	for j := 0; j < n; j++ {
+		key, err := invokePut(i.Field(j), ctx)
+		if err != nil {
 			return nil, err
 		}
-	}
-	k, err := nds.Put(c, Key(c, val), val)
-	if err != nil {
-		return nil, err
-	}
-	return k, nil
-}
-
-// PutMulti inserts vals into the database under the keys as returned by Keys
-func PutMulti(c appengine.Context, vals interface{}) ([]*datastore.Key, error) {
-	err := rangeInterface(func(i interface{}) error {
-		if g, ok := i.(OnPutter); ok {
-			err := g.OnPut(c)
-			if err != nil {
-				return err
-			}
+		if key != nil {
+			return key, nil
 		}
-		return nil
-	}, vals)
-	if err != nil {
-		return nil, err
 	}
-	keys, err := nds.PutMulti(c, Keys(c, vals), vals)
-	if err != nil {
-		return nil, err
-	}
-	return keys, nil
-}
-
-// RunInTransaction runs f within a transaction
-func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *datastore.TransactionOptions) error {
-	return nds.RunInTransaction(c, f, opts)
-}
-
-// Key returns a key based on fields in src.
-// Options are:
-// An int64 field named ID
-// A datastore.Key field named Parent
-func Key(ctx appengine.Context, src interface{}) *datastore.Key {
-	val := reflect.ValueOf(src)
-	for val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	if val.Kind() != reflect.Struct {
-		panic("cannot get key of non-struct type")
-	}
-	idField := val.FieldByName("ID")
-	parentField := val.FieldByName("Parent")
-	var (
-		id     int64
-		parent *datastore.Key
-	)
-	if idField.IsValid() && idField.Kind() == reflect.Int64 {
-		id = idField.Int()
-	}
-	if parentField.IsValid() && parentField.Type().AssignableTo(keyType) {
-		parent = parentField.Interface().(*datastore.Key)
-	}
-	return datastore.NewKey(ctx, val.Type().Name(), "", id, parent)
-}
-
-// Keys applies Key to all elements in src. src must be a slice.
-func Keys(ctx appengine.Context, src interface{}) []*datastore.Key {
-	var keys []*datastore.Key
-	err := rangeInterface(func(i interface{}) error {
-		keys = append(keys, Key(ctx, i))
-		return nil
-	}, src)
-	if err != nil {
-		panic(err.Error())
-	}
-	return keys
+	return datastore.NewKey(ctx, i.Type().Name(), "", 0, nil), nil
 }
 
 func rangeInterface(f func(interface{}) error, list interface{}) error {
@@ -160,17 +90,128 @@ func rangeInterface(f func(interface{}) error, list interface{}) error {
 	return nil
 }
 
-// GetN stores n values from query in dst
-func GetN(cx appengine.Context, query *datastore.Query, dst interface{}, n int) ([]*datastore.Key, string, error) {
-	ctx := cx
+func invokeGetMulti(ctx appengine.Context, src interface{}, keys []*datastore.Key) error {
+	i := 0
+	return rangeInterface(func(x interface{}) error {
+		err := invokeGet(reflect.ValueOf(x), ctx, keys[i])
+		if err != nil {
+			return err
+		}
+		i++
+		return nil
+	}, src)
+}
+
+func invokePutMulti(ctx appengine.Context, src interface{}) ([]*datastore.Key, error) {
+	var keys []*datastore.Key
+	err := rangeInterface(func(x interface{}) error {
+		key, err := invokePut(reflect.ValueOf(x), ctx)
+		if err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		return nil
+	}, src)
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// func AllocateIDs(c appengine.Context, kind string, parent *Key, n int) (low, high int64, err error) {
+// 	return datastore.AllocateIDs(c, kind, parent, n)
+// }
+
+// Delete See https://cloud.google.com/appengine/docs/go/datastore/reference#Delete
+func Delete(c appengine.Context, key *Key) error {
+	return nds.Delete(c, key)
+}
+
+// DeleteMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#DeleteMulti
+func DeleteMulti(c appengine.Context, key []*Key) error {
+	return nds.DeleteMulti(c, key)
+}
+
+// Get See https://cloud.google.com/appengine/docs/go/datastore/reference#Get
+func Get(c appengine.Context, key *Key, dst interface{}) error {
+	err := nds.Get(c, key, dst)
+	if err != nil {
+		return err
+	}
+	return invokeGet(reflect.ValueOf(dst), c, key)
+}
+
+// GetMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#GetMulti
+func GetMulti(c appengine.Context, keys []*Key, dst interface{}) error {
+	err := nds.GetMulti(c, key, dst)
+	if err != nil {
+		return err
+	}
+	return invokeGetMulti(c, dst, keys)
+}
+
+// LoadStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#LoadStruct
+func LoadStruct(dst interface{}, c <-chan Property) error {
+	return nds.LoadStruct(dst, pl)
+}
+
+// Put See https://cloud.google.com/appengine/docs/go/datastore/reference#Put
+func Put(c appengine.Context, src interface{}) (*Key, error) {
+	key, err := invokePut(reflect.ValueOf(src), c)
+	if err != nil {
+		return nil, err
+	}
+	return nds.Put(c, key, src)
+}
+
+// PutMulti See https://cloud.google.com/appengine/docs/go/datastore/reference#PutMulti
+func PutMulti(c appengine.Context, src interface{}) ([]*Key, error) {
+	keys, err := invokePutMulti(c, src)
+	if err != nil {
+		return nil, err
+	}
+	return nds.PutMulti(c, keys, src)
+}
+
+// RunInTransaction See https://cloud.google.com/appengine/docs/go/datastore/reference#RunInTransaction
+func RunInTransaction(c appengine.Context, f func(tc appengine.Context) error, opts *TransactionOptions) error {
+	return nds.RunInTransaction(c, f, opts)
+}
+
+// SaveStruct See https://cloud.google.com/appengine/docs/go/datastore/reference#SaveStruct
+func SaveStruct(src interface{}, c chan<- Property) error {
+	return nds.SaveStruct(src, pl)
+}
+
+// Run returns an iterator for a given query
+func Run(ctx appengine.Context, q *datastore.Query) Iterator {
+	return iterWrapper{ctx, q.Run(ctx)}
+}
+
+// GetAll returns all results for a query
+func GetAll(ctx appengine.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
+	keys, err := q.GetAll(ctx, dst)
+	if err != nil {
+		return nil, err
+	}
+	err = invokeGetMulti(ctx, dst, keys)
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// GetN fetches N results from the query
+// Returns the keys, a pagetoken, and an error
+func GetN(ctx appengine.Context, q *datastore.Query, dst interface{}, n int) ([]*datastore.Key, string, error) {
 	out := reflect.ValueOf(dst)
 	if out.Kind() != reflect.Ptr || out.Elem().Kind() != reflect.Slice {
-		return nil, "", errors.New("dst must be a *[]T")
+		return nil, "", errors.New("dst must be a *[]*T")
 	}
 
 	var (
 		count    = 0
-		iter     = query.Run(ctx)
+		iter     = Run(ctx, q)
 		slice    = out.Elem()
 		elemType = out.Type().Elem().Elem()
 		keys     = make([]*datastore.Key, n)
@@ -184,12 +225,6 @@ func GetN(cx appengine.Context, query *datastore.Query, dst interface{}, n int) 
 			if err == datastore.Done {
 				break
 			} else {
-				return nil, "", err
-			}
-		}
-		if getter, ok := x.(OnGetter); ok {
-			err = getter.OnGet(cx)
-			if err != nil {
 				return nil, "", err
 			}
 		}
@@ -207,4 +242,27 @@ func GetN(cx appengine.Context, query *datastore.Query, dst interface{}, n int) 
 	}
 
 	return keys, c.String(), nil
+}
+
+// Iterator abstracts the datastore.Iterator
+type Iterator interface {
+	Cursor() (datastore.Cursor, error)
+	Next(dst interface{}) (*datastore.Key, error)
+}
+
+type iterWrapper struct {
+	ctx appengine.Context
+	Iterator
+}
+
+func (i iterWrapper) Next(dst interface{}) (*datastore.Key, error) {
+	k, err := i.Iterator.Next(dst)
+	if err != nil {
+		return nil, err
+	}
+	err := invokeGet(reflect.ValueOf(dst), i.ctx, k)
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
 }
