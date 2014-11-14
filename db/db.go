@@ -76,6 +76,9 @@ func invokePut(i reflect.Value, ctx appengine.Context) (*datastore.Key, error) {
 
 func rangeInterface(f func(interface{}) error, list interface{}) error {
 	val := reflect.ValueOf(list)
+	for val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
 	if val.Kind() != reflect.Slice {
 		return errors.New("argument must be a slice")
 	}
